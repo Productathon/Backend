@@ -5,40 +5,50 @@ const Lead = require('../models/Lead');
 // @access  Public
 exports.getAnalyticsStats = async (req, res) => {
   try {
-    // Total leads all-time
-    const totalLeads = await Lead.countDocuments();
+    const { range = '6m' } = req.query;
+    
+    // Calculate date ranges
+    const now = new Date();
+    const startDate = new Date();
+    let previousStartDate = new Date();
+    
+    // Determine days back based on range
+    let daysBack = 180; // default 6m
+    if (range === '30d') daysBack = 30;
+    else if (range === '3m') daysBack = 90;
+    else if (range === '6m') daysBack = 180;
+    else if (range === '1y') daysBack = 365;
+    else if (range === 'all') daysBack = 365 * 10; // 10 years approximation
 
-    // Leads in last 30 days vs previous 30 days for increase %
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    startDate.setDate(now.getDate() - daysBack);
+    previousStartDate.setDate(startDate.getDate() - daysBack); // Previous period of same duration
 
-    const recentLeads = await Lead.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
+    // 1. Total Leads (in selected range)
+    const totalLeads = await Lead.countDocuments({ 
+      createdAt: { $gte: startDate } 
+    });
+
+    // 2. Leads Increase (vs previous period of same duration)
     const previousLeads = await Lead.countDocuments({ 
-      createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo } 
+      createdAt: { $gte: previousStartDate, $lt: startDate } 
     });
 
     let leadsIncrease = '+0%';
     if (previousLeads > 0) {
-      const increase = ((recentLeads - previousLeads) / previousLeads) * 100;
+      const increase = ((totalLeads - previousLeads) / previousLeads) * 100;
       leadsIncrease = `${increase >= 0 ? '+' : ''}${increase.toFixed(1)}%`;
-    } else if (recentLeads > 0) {
+    } else if (totalLeads > 0) {
       leadsIncrease = '+100%';
     }
 
-    // Average leads per month (based on data span)
-    const oldestLead = await Lead.findOne().sort({ createdAt: 1 });
-    let avgPerMonth = totalLeads;
-    if (oldestLead) {
-      const monthsSpan = Math.max(1, Math.ceil(
-        (new Date() - oldestLead.createdAt) / (1000 * 60 * 60 * 24 * 30)
-      ));
-      avgPerMonth = Math.round(totalLeads / monthsSpan);
-    }
+    // 3. Avg per Month (in selected range)
+    // Simplify: Total / (daysBack / 30)
+    const monthsInRange = Math.max(1, daysBack / 30);
+    const avgPerMonth = Math.round(totalLeads / monthsInRange);
 
-    // Best month
+    // 4. Best Month (in selected range)
     const monthlyStats = await Lead.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
       {
         $group: {
           _id: { $month: '$createdAt' },
@@ -48,16 +58,45 @@ exports.getAnalyticsStats = async (req, res) => {
       { $sort: { count: -1 } },
       { $limit: 1 }
     ]);
+    const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const fullMonthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const bestMonth = monthlyStats.length > 0 ? fullMonthNames[monthlyStats[0]._id] : '-';
 
-    const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
-                        'July', 'August', 'September', 'October', 'November', 'December'];
-    const bestMonth = monthlyStats.length > 0 ? monthNames[monthlyStats[0]._id] : 'February';
+    // 5. Monthly Trends (for Chart)
+    const monthlyTrendsAgg = await Lead.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { 
+            year: { $year: '$createdAt' }, 
+            month: { $month: '$createdAt' } 
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
 
-    // Industry performance with growth calculation
+    // Fill in missing months? For now, just map existing data.
+    // Ideally we generate a list of all months in range and fill 0s, but let's stick to present data for MVP.
+    const monthlyTrends = monthlyTrendsAgg.map(item => ({
+      label: monthNames[item._id.month],
+      value: item.count,
+      fullLabel: `${monthNames[item._id.month]} ${item._id.year}`
+    }));
+
+    // 6. Industry Performance (in selected range)
     const industryStats = await Lead.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
       { $group: { _id: '$industry', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 6 }
+    ]);
+
+    // Fetch previous period industry stats for growth calculation
+    const previousIndustryStats = await Lead.aggregate([
+      { $match: { createdAt: { $gte: previousStartDate, $lt: startDate } } },
+      { $group: { _id: '$industry', count: { $sum: 1 } } }
     ]);
 
     const industryIcons = {
@@ -72,15 +111,29 @@ exports.getAnalyticsStats = async (req, res) => {
       'Other': '👤'
     };
 
-    const formattedIndustries = industryStats.map(ind => ({
-      name: ind._id || 'Other',
-      value: ind.count.toLocaleString(),
-      growth: `+${(Math.random() * 15 + 8).toFixed(1)}%`, // Simulated growth for now
-      icon: industryIcons[ind._id] || '👤'
-    }));
+    const formattedIndustries = industryStats.map(ind => {
+      const prev = previousIndustryStats.find(p => p._id === ind._id);
+      const prevCount = prev ? prev.count : 0;
+      let growth = '+0%';
+      
+      if (prevCount > 0) {
+        const diff = ((ind.count - prevCount) / prevCount) * 100;
+        growth = `${diff >= 0 ? '+' : ''}${Math.round(diff)}%`;
+      } else if (ind.count > 0) {
+        growth = '+100%'; // New industry activity
+      }
 
-    // Status distribution for donut chart
+      return {
+        name: ind._id || 'Other',
+        value: ind.count.toLocaleString(),
+        growth, 
+        icon: industryIcons[ind._id] || '👤'
+      };
+    });
+
+    // 7. Status Distribution (in selected range)
     const statusStats = await Lead.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -109,20 +162,28 @@ exports.getAnalyticsStats = async (req, res) => {
       color: statusColors[s._id] || 'bg-slate-300'
     }));
 
-    // Funnel data based on status progression
-    // Simulate funnel progression percentages
+    // 8. Funnel Data (based on range stats)
     const newCount = statusStats.find(s => s._id === 'new')?.count || 0;
     const contactedCount = statusStats.find(s => s._id === 'contacted')?.count || 0;
     const qualifiedCount = statusStats.find(s => s._id === 'qualified')?.count || 0;
     const convertedCount = statusStats.find(s => s._id === 'converted')?.count || 0;
     
+    // Simple funnel simulation: 
+    // Top = Total Leads. 
+    // Contacted = Contacted + Qualified + Converted
+    // Qualified = Qualified + Converted
+    // Converted = Converted
     const funnelTotal = totalLeads || 1;
+    const stageContacted = contactedCount + qualifiedCount + convertedCount;
+    const stageQualified = qualifiedCount + convertedCount;
+    const stageConverted = convertedCount;
+    
     const funnelData = [
       { label: 'Leads', value: formatNumber(totalLeads), percent: '100%', x: '0%' },
-      { label: 'Contacted', value: formatNumber(contactedCount + qualifiedCount + convertedCount), percent: `${Math.round(((contactedCount + qualifiedCount + convertedCount) / funnelTotal) * 100)}%`, x: '20%' },
-      { label: 'Qualified', value: formatNumber(qualifiedCount + convertedCount), percent: `${Math.round(((qualifiedCount + convertedCount) / funnelTotal) * 100)}%`, x: '40%' },
-      { label: 'Proposal', value: formatNumber(Math.floor(convertedCount * 1.5)), percent: `${Math.round((convertedCount * 1.5 / funnelTotal) * 100)}%`, x: '60%' },
-      { label: 'Converted', value: formatNumber(convertedCount), percent: `${Math.round((convertedCount / funnelTotal) * 100)}%`, x: '80%' }
+      { label: 'Contacted', value: formatNumber(stageContacted), percent: `${Math.round((stageContacted / funnelTotal) * 100)}%`, x: '20%' },
+      { label: 'Qualified', value: formatNumber(stageQualified), percent: `${Math.round((stageQualified / funnelTotal) * 100)}%`, x: '40%' },
+      { label: 'Proposal', value: formatNumber(Math.floor(stageConverted * 1.5)), percent: `${Math.round((stageConverted * 1.5 / funnelTotal) * 100)}%`, x: '60%' }, // Mock "Proposal" as 1.5x converted
+      { label: 'Converted', value: formatNumber(stageConverted), percent: `${Math.round((stageConverted / funnelTotal) * 100)}%`, x: '80%' }
     ];
 
     res.status(200).json({
@@ -132,6 +193,7 @@ exports.getAnalyticsStats = async (req, res) => {
         totalLeads: formatNumber(totalLeads),
         avgPerMonth: formatNumber(avgPerMonth),
         bestMonth,
+        monthlyTrends, // New field
         industryPerformance: formattedIndustries,
         statusDistribution: formattedStatuses,
         funnelData

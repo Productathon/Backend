@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const Lead = require('./models/Lead');
 const Account = require('./models/Account');
 const Dossier = require('./models/Dossier');
+const Log = require('./models/Log');
 const connectDB = require('./config/db');
 
 // Load env vars
@@ -26,8 +27,17 @@ const importData = async () => {
     await Lead.deleteMany();
     await Account.deleteMany();
     await Dossier.deleteMany();
+    await Log.deleteMany();
 
     console.log('Data Destroyed...');
+
+    // ... (leads array unchanged)
+    
+    // ... (accounts array unchanged)
+
+    // ... (dossiers array unchanged)
+
+
 
     // Extended Leads with varied industries, locations, and company sizes
     const leads = [
@@ -99,28 +109,31 @@ const importData = async () => {
       { name: 'Peter Müller', email: 'p.muller@lidl.de', company: 'Lidl Digital', matchScore: 78, status: 'new', industry: 'Retail', location: 'Neckarsulm, Germany', companySize: 'Large', createdAt: randomDate(5) },
     ];
 
+    const accountOwners = ['Rahul Sharma', 'Sarah Jenkins', 'Mike Ross', 'Jessica Pearson', 'Harvey Specter'];
+    const getRandomOwner = () => accountOwners[Math.floor(Math.random() * accountOwners.length)];
+
     // Extended Accounts with lastInteraction dates
     const accounts = [
       { company: 'Acme Corp', industry: 'Manufacturing', value: '$1.2M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(1) },
-      { company: 'Globex Inc', industry: 'Retail', value: '$850k', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(2) },
-      { company: 'Stellar Dynamics', industry: 'Technology', value: '$3.5M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(0) },
-      { company: 'Omni Consumer Products', industry: 'Technology', value: '$10M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(3) },
-      { company: 'Initech', industry: 'Technology', value: '$150k', owner: 'Rahul Sharma', status: 'Dormant', lastInteraction: randomDate(30) },
-      { company: 'Hooli', industry: 'Technology', value: '$25M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(1) },
-      { company: 'Pied Piper', industry: 'Technology', value: '$2.1M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(5) },
-      { company: 'Soylent Corp', industry: 'Healthcare', value: '$500k', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(7) },
-      { company: 'Gringotts', industry: 'Finance', value: '$8.2M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(2) },
-      { company: 'Weyland-Yutani', industry: 'Manufacturing', value: '$45M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(4) },
-      { company: 'Cyberdyne Systems', industry: 'Technology', value: '$15M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(1) },
+      { company: 'Globex Inc', industry: 'Retail', value: '$850k', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(2) },
+      { company: 'Stellar Dynamics', industry: 'Technology', value: '$3.5M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(0) },
+      { company: 'Omni Consumer Products', industry: 'Technology', value: '$10M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(3) },
+      { company: 'Initech', industry: 'Technology', value: '$150k', owner: getRandomOwner(), status: 'Dormant', lastInteraction: randomDate(30) },
+      { company: 'Hooli', industry: 'Technology', value: '$25M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(1) },
+      { company: 'Pied Piper', industry: 'Technology', value: '$2.1M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(5) },
+      { company: 'Soylent Corp', industry: 'Healthcare', value: '$500k', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(7) },
+      { company: 'Gringotts', industry: 'Finance', value: '$8.2M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(2) },
+      { company: 'Weyland-Yutani', industry: 'Manufacturing', value: '$45M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(4) },
+      { company: 'Cyberdyne Systems', industry: 'Technology', value: '$15M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(1) },
       { company: 'Stark Industries', industry: 'Manufacturing', value: '$120M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(0) },
-      { company: 'Wayne Enterprises', industry: 'Finance', value: '$80M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(3) },
-      { company: 'Oscorp Industries', industry: 'Healthcare', value: '$35M', owner: 'Rahul Sharma', status: 'Dormant', lastInteraction: randomDate(45) },
-      { company: 'Umbrella Corporation', industry: 'Healthcare', value: '$22M', owner: 'Rahul Sharma', status: 'Closed', lastInteraction: randomDate(60) },
-      { company: 'LexCorp', industry: 'Technology', value: '$55M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(2) },
-      { company: 'Massive Dynamic', industry: 'Technology', value: '$18M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(6) },
-      { company: 'Tyrell Corporation', industry: 'Manufacturing', value: '$28M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(4) },
-      { company: 'Buy n Large', industry: 'Retail', value: '$95M', owner: 'Rahul Sharma', status: 'Active', lastInteraction: randomDate(1) },
-      { company: 'Aperture Science', industry: 'Technology', value: '$12M', owner: 'Rahul Sharma', status: 'Dormant', lastInteraction: randomDate(20) },
+      { company: 'Wayne Enterprises', industry: 'Finance', value: '$80M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(3) },
+      { company: 'Oscorp Industries', industry: 'Healthcare', value: '$35M', owner: getRandomOwner(), status: 'Dormant', lastInteraction: randomDate(45) },
+      { company: 'Umbrella Corporation', industry: 'Healthcare', value: '$22M', owner: getRandomOwner(), status: 'Closed', lastInteraction: randomDate(60) },
+      { company: 'LexCorp', industry: 'Technology', value: '$55M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(2) },
+      { company: 'Massive Dynamic', industry: 'Technology', value: '$18M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(6) },
+      { company: 'Tyrell Corporation', industry: 'Manufacturing', value: '$28M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(4) },
+      { company: 'Buy n Large', industry: 'Retail', value: '$95M', owner: getRandomOwner(), status: 'Active', lastInteraction: randomDate(1) },
+      { company: 'Aperture Science', industry: 'Technology', value: '$12M', owner: getRandomOwner(), status: 'Dormant', lastInteraction: randomDate(20) },
     ];
 
     // Extended Dossiers with industry
@@ -142,11 +155,100 @@ const importData = async () => {
       { company: 'Walmart Enterprise', type: 'news', title: 'Drone Delivery Expansion', description: 'Expanding same-day drone delivery to 50 new cities.', date: '10 hours ago', industry: 'Retail' },
     ];
 
+    // Log Data
+    const logs = [
+      // Processed News
+      {
+        title: "TechFlow announces Series B funding",
+        url: "https://techcrunch.com/2026/02/05/techflow-series-b",
+        domain: "techcrunch.com",
+        sourceType: "News",
+        status: "Processed",
+        crawlMethod: "Scraper",
+        contentExcerpt: "TechFlow Systems has raised $30M in Series B funding led by Sequoia Capital to expand their enterprise sales team...",
+        highlightedKeywords: ["TechFlow Systems", "$30M", "Series B", "expansion"],
+        usedForLeadGeneration: true,
+        inferredIndustry: "Technology",
+        signalStrength: "High",
+        usageDescription: "Identified high-growth signal for verified lead generation.",
+        relevanceTag: "Used for lead generation",
+        scrapedAt: randomDate(1),
+        processedAt: new Date()
+      },
+      // Pending Tender
+      {
+        title: "RFP: Supply Chain Automation",
+        url: "https://tenders.gov/opportunities/SC-2026-892",
+        domain: "tenders.gov",
+        sourceType: "Govt Portal",
+        status: "Pending",
+        crawlMethod: "API",
+        contentExcerpt: "Department of Transportation seeking vendors for warehouse robotics integration and supply chain automation software...",
+        highlightedKeywords: ["warehouse robotics", "automation", "consulting"],
+        scrapedAt: new Date(), // Just now
+        relevanceTag: "High relevance"
+      },
+      // Failed Blog
+      {
+        title: "Top 10 Manufacturing Trends 2026",
+        url: "https://industry-insider.blog/manufacturing-trends",
+        domain: "industry-insider.blog",
+        sourceType: "Blog",
+        status: "Failed",
+        errorMessage: "Timeout: 403 Forbidden (Anti-bot protection)",
+        crawlMethod: "Scraper",
+        contentExcerpt: "",
+        scrapedAt: randomDate(2)
+      },
+      // Processed Signal
+      {
+        title: "Major hiring spike in procurement",
+        url: "https://linkedin.com/company/nexus-corp/jobs",
+        domain: "linkedin.com",
+        sourceType: "Website",
+        status: "Processed",
+        crawlMethod: "Scraper",
+        contentExcerpt: "Nexus Corp has posted 15 new positions in their procurement and supply chain division in the last 48 hours...",
+        highlightedKeywords: ["procurement", "supply chain", "hiring"],
+        usedForLeadGeneration: true,
+        inferredIndustry: "Logistics",
+        signalStrength: "Medium",
+        usageDescription: "Correlated hiring spike with potential expansion plans.",
+        relevanceTag: "Used for lead generation",
+        scrapedAt: randomDate(3),
+        processedAt: randomDate(2)
+      },
+      // Reference News
+      {
+        title: "Global Logistics Market Report",
+        url: "https://reuters.com/business/logistics-market-2026",
+        domain: "reuters.com",
+        sourceType: "News",
+        status: "Processed",
+        crawlMethod: "RSS",
+        contentExcerpt: "The global logistics market is projected to grow by 5.8% in Q2 2026, driven by e-commerce expansion in SE Asia...",
+        highlightedKeywords: ["logistics", "market growth", "SE Asia"],
+        usedForLeadGeneration: false,
+        relevanceTag: "Reference only",
+        scrapedAt: randomDate(4),
+        processedAt: randomDate(3)
+      },
+      // More Logs...
+      { title: "New patent for high-efficiency cells", url: "https://patents.google.com/patent/US1234567", domain: "patents.google.com", sourceType: "Govt Portal", status: "Processed", crawlMethod: "API", contentExcerpt: "Abstract: A method for increasing solar cell efficiency by 15% using novel silicon doping techniques...", highlightedKeywords: ["solar cell", "efficiency", "patent"], usedForLeadGeneration: true, inferredIndustry: "Technology", signalStrength: "High", relevanceTag: "Used for lead generation", scrapedAt: randomDate(2) },
+      { title: "Q4 Earnings Call Transcript", url: "https://seekingalpha.com/article/998877", domain: "seekingalpha.com", sourceType: "News", status: "Processed", crawlMethod: "Scraper", contentExcerpt: "CEO: We are looking to upgrade our legacy backend systems in the coming fiscal year...", highlightedKeywords: ["upgrade", "legacy systems", "backend"], usedForLeadGeneration: true, inferredIndustry: "Finance", signalStrength: "Medium", relevanceTag: "Used for lead generation", scrapedAt: randomDate(5) },
+      { title: "Construction Permit: Downtown Highrise", url: "https://cityplanning.sf.gov/permits/2026-992", domain: "sf.gov", sourceType: "Govt Portal", status: "Pending", crawlMethod: "Scraper", contentExcerpt: "Permit application for 45-story mixed-use building at 500 Market St...", highlightedKeywords: ["construction", "permit", "highrise"], scrapedAt: randomDate(1), relevanceTag: "High relevance" },
+      { title: "Retail Tech Expo 2026 Exhibitors", url: "https://retailtechexpo.com/exhibitors", domain: "retailtechexpo.com", sourceType: "Website", status: "Processed", crawlMethod: "Scraper", contentExcerpt: "List of 500+ exhibitors showcasing AI-driven retail solutions...", highlightedKeywords: ["AI", "retail", "exhibitors"], usedForLeadGeneration: false, relevanceTag: "Reference only", scrapedAt: randomDate(6) },
+      { title: "Healthcare AI Regulations Draft", url: "https://fda.gov/news/ai-regulations", domain: "fda.gov", sourceType: "Govt Portal", status: "Processed", crawlMethod: "API", contentExcerpt: "Draft guidance for AI/ML-based medical software...", highlightedKeywords: ["AI", "medical software", "regulation"], usedForLeadGeneration: false, relevanceTag: "Reference only", scrapedAt: randomDate(7) },
+      { title: "Oil Prices Surge on Geopolitical Risk", url: "https://bloomberg.com/energy/oil-surge", domain: "bloomberg.com", sourceType: "News", status: "Processed", crawlMethod: "RSS", contentExcerpt: "Brent crude tops $90 as tensions rise...", highlightedKeywords: ["oil", "prices", "geopolitical"], usedForLeadGeneration: false, relevanceTag: null, scrapedAt: randomDate(1) },
+      { title: "Invalid RSS Feed Format", url: "https://broken-site.com/feed.xml", domain: "broken-site.com", sourceType: "Blog", status: "Failed", errorMessage: "XML Parse Error: Unexpected token <", crawlMethod: "RSS", contentExcerpt: "", scrapedAt: randomDate(0) },
+    ];
+
     await Lead.insertMany(leads);
     await Account.insertMany(accounts);
     await Dossier.insertMany(dossiers);
+    await Log.insertMany(logs);
 
-    console.log(`Data Imported! ${leads.length} leads, ${accounts.length} accounts, ${dossiers.length} dossiers`);
+    console.log(`Data Imported! ${leads.length} leads, ${accounts.length} accounts, ${dossiers.length} dossiers, ${logs.length} logs`);
     process.exit();
   } catch (err) {
     console.error(err);

@@ -1,10 +1,11 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const connectDB = require('./config/db');
 
-// Load environment variables
+// Load environment variables immediately
 dotenv.config();
+
+const connectDB = require('./config/db');
 
 // Connect to database
 connectDB();
@@ -28,14 +29,17 @@ app.use('/api/accounts', accounts);
 app.use('/api/dossiers', dossiers);
 app.use('/api/dashboard', dashboard);
 app.use('/api/analytics', analytics);
+app.use('/api/logs', require('./routes/logRoutes'));
+app.use('/api/activities', require('./routes/activityRoutes'));
+app.use('/api/contracts', require('./routes/contractRoutes'));
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.send('Sales Portal API is running...');
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
+// Start server (Avoid port 5000 on macOS - AirPlay/ControlCenter)
+const PORT = process.env.PORT || 5001;
 const server = app.listen(PORT, console.log(`Server running on port ${PORT}`));
 
 // Handle unhandled promise rejections

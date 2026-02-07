@@ -6,13 +6,22 @@ const Account = require('../models/Account');
 // @access  Public
 exports.getDashboardStats = async (req, res) => {
   try {
-    // Basic counts
-    const totalLeads = await Lead.countDocuments();
-    const activeLeads = await Lead.countDocuments({ status: 'new' });
-    const convertedLeads = await Lead.countDocuments({ status: { $in: ['converted', 'closed'] } });
+    // Date filtering logic
+    const days = parseInt(req.query.days) || 30; // Default to 30 days if not specified
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    // Filter object for queries
+    const dateFilter = { createdAt: { $gte: startDate } };
+
+    // Basic counts with date filter
+    const totalLeads = await Lead.countDocuments(dateFilter);
+    const activeLeads = await Lead.countDocuments({ ...dateFilter, status: 'new' });
+    const convertedLeads = await Lead.countDocuments({ ...dateFilter, status: { $in: ['converted', 'closed'] } });
     
     // Average score aggregation
     const avgScoreResult = await Lead.aggregate([
+      { $match: dateFilter },
       { $group: { _id: null, avgScore: { $avg: '$matchScore' } } }
     ]);
     const avgScore = avgScoreResult.length > 0 ? Math.round(avgScoreResult[0].avgScore * 10) / 10 : 0;
@@ -22,13 +31,10 @@ exports.getDashboardStats = async (req, res) => {
     const conversionRate = totalProcessed > 0 
       ? Math.round((convertedLeads / totalProcessed) * 100 * 10) / 10 
       : 0;
-
-    // Lead trends - last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
+    // Lead trends - over selected days
     const leadTrends = await Lead.aggregate([
-      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      { $match: { createdAt: { $gte: startDate } } },
       {
         $group: {
           _id: { $dayOfWeek: '$createdAt' },
@@ -47,20 +53,42 @@ exports.getDashboardStats = async (req, res) => {
     });
     
     const formattedTrends = [];
+    let maxCount = 0;
+    let peakDay = '';
+
     for (let i = 1; i <= 7; i++) {
       const dayIndex = i % 7; // MongoDB uses 1=Sun, 2=Mon, etc.
+      const count = trendsMap[i] || 0;
+      const dayName = dayNames[dayIndex];
+      
       formattedTrends.push({
-        day: dayNames[dayIndex],
-        count: trendsMap[i] || Math.floor(Math.random() * 20) + 10, // Fallback with realistic range
+        day: dayName,
+        count: count,
       });
+
+      if (count >= maxCount) {
+        maxCount = count;
+        peakDay = dayName;
+      }
+    }
+
+    // Generate insight
+    let trendInsight = "Lead volume is stable.";
+    if (maxCount > 0) {
+      trendInsight = `Lead volume peaked on ${peakDay} with ${maxCount} new leads.`;
+    } else {
+      trendInsight = "No new leads recorded in this period.";
     }
 
     // Industry distribution
     const industryDistribution = await Lead.aggregate([
+      { $match: dateFilter },
       { $group: { _id: '$industry', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 5 }
     ]);
+    
+    console.log('Industry Distribution:', industryDistribution); // Debug log
 
     const totalForIndustry = industryDistribution.reduce((sum, ind) => sum + ind.count, 0);
     const formattedIndustries = industryDistribution.map(ind => ({
@@ -71,9 +99,12 @@ exports.getDashboardStats = async (req, res) => {
 
     // Status distribution
     const statusDistribution = await Lead.aggregate([
+      { $match: dateFilter },
       { $group: { _id: '$status', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
+    
+    console.log('Status Distribution:', statusDistribution); // Debug log
 
     const totalForStatus = statusDistribution.reduce((sum, s) => sum + s.count, 0);
     const formattedStatuses = statusDistribution.map(s => ({
@@ -90,29 +121,44 @@ exports.getDashboardStats = async (req, res) => {
       createdAt: { $gte: today } 
     });
     
+    console.log('New Leads Today:', newLeadsToday, 'Date:', today); // Debug log
+
     // Consider leads older than 3 days as "overdue"
+    // Fix: Ensure we use the date filter limit as well if strictly needed, but overdue implies "old", so maybe not?
+    // Actually, "overdue" usually means "status new AND old enough".
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
     const overdueCount = await Lead.countDocuments({
       status: 'new',
       createdAt: { $lt: threeDaysAgo }
     });
+    
+    console.log('Overdue Count:', overdueCount); // Debug log
+
+    const responseData = {
+      totalLeads: totalLeads || 0,
+      activeLeads: activeLeads || 0,
+      conversionRate: conversionRate || 0,
+      avgScore: avgScore || 0,
+      leadTrends: formattedTrends,
+      trendInsight,
+      industryDistribution: formattedIndustries,
+      statusDistribution: formattedStatuses,
+      priorities: {
+        overdueCount: overdueCount || 0,
+        newLeadsToday: newLeadsToday || 0
+      }
+    };
+
+    console.log('Dashboard stats generated:', {
+      totalLeads,
+      activeLeads,
+      newLeadsToday
+    });
 
     res.status(200).json({
       success: true,
-      data: {
-        totalLeads,
-        activeLeads,
-        avgScore,
-        conversionRate,
-        leadTrends: formattedTrends,
-        industryDistribution: formattedIndustries,
-        statusDistribution: formattedStatuses,
-        priorities: {
-          overdueCount,
-          newLeadsToday
-        }
-      }
+      data: responseData
     });
 
   } catch (err) {

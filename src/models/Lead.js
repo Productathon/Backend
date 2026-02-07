@@ -43,6 +43,10 @@ const LeadSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  feedback: {
+    type: [String],
+    default: [],
+  },
 });
 
 module.exports = mongoose.model('Lead', LeadSchema);

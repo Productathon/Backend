@@ -13,17 +13,35 @@ connectDB();
 // Initialize Express app
 const app = express();
 
+// Initialize Services
+const { initializeClient } = require('./services/whatsappService');
+const { initializeEmailService } = require('./services/emailService');
+
+// Start services (Non-blocking)
+initializeClient().catch(err => console.error('WhatsApp init failed:', err));
+initializeEmailService();
+
 // Middleware
 app.use(express.json()); // Body parser
 app.use(cors()); // Enable CORS
 
 // Mount routers
+const auth = require('./routes/authRoutes');
 const leads = require('./routes/leadRoutes');
 const accounts = require('./routes/accountRoutes');
 const dossiers = require('./routes/dossierRoutes');
 const dashboard = require('./routes/dashboardRoutes');
 const analytics = require('./routes/analyticsRoutes');
 
+// Public routes
+app.use('/api/auth', auth);
+
+// Notification Routes (Migrated from whatsapp_notification)
+app.use('/api', require('./routes/notificationRoutes')); // Exposes /api/notify and /api/status
+app.use('/api/email', require('./routes/emailRoutes'));   // Exposes /api/email/notify and /api/email/status
+
+// Protected routes (can add middleware later if needed)
+// app.use('/api/notifications', notifications); // Removed in favor of migrated routes
 app.use('/api/leads', leads);
 app.use('/api/accounts', accounts);
 app.use('/api/dossiers', dossiers);

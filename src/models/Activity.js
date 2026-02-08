@@ -4,7 +4,7 @@ const ActivitySchema = new mongoose.Schema({
   account: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Account',
-    required: true
+    // required: true - Made optional for Lead-based activities
   },
   type: {
     type: String,

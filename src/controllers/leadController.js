@@ -98,7 +98,50 @@ exports.getLeads = async (req, res) => {
     }
 
     const leads = await Lead.find(query).sort(sortQuery);
-    res.status(200).json({ success: true, count: leads.length, data: leads });
+    
+    // Map leads to include frontend-expected intelligence fields
+    const enrichedLeads = leads.map(lead => {
+      // Compute intelligence fields based on matchScore and other data
+      const confidenceScore = lead.matchScore;
+      const urgencyLevel = lead.matchScore > 85 ? 'High' : (lead.matchScore > 70 ? 'Medium' : 'Low');
+      
+      return {
+        id: lead._id,
+        name: lead.company,
+        match: lead.matchScore,
+        status: lead.status.toUpperCase(),
+        statusColor: lead.matchScore > 85 ? '#EF4444' : (lead.matchScore > 70 ? '#F59E0B' : '#94A3B8'),
+        signal: 'Active',
+        signalColor: '#DBEAFE',
+        location: lead.location || 'Unknown',
+        industry: lead.industry,
+        lastContact: '1d ago', // Placeholder
+        contact: lead.name,
+        email: lead.email,
+        phone: lead.phone || 'N/A',
+        revenue: '$50M', // Placeholder
+        employees: '500', // Placeholder
+        confidenceScore,
+        urgencyLevel,
+        recommendedProduct: {
+          name: 'Product Solution',
+          justification: 'Based on industry and company size'
+        },
+        aiReportSummary: [
+          'Lead analysis in progress',
+          'Contact information verified',
+          'Recommended for follow-up'
+        ],
+        // Keep original fields for compatibility
+        _id: lead._id,
+        company: lead.company,
+        matchScore: lead.matchScore,
+        createdAt: lead.createdAt,
+        lastUpdated: lead.lastUpdated
+      };
+    });
+    
+    res.status(200).json({ success: true, count: enrichedLeads.length, data: enrichedLeads });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -115,7 +158,45 @@ exports.getLead = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Lead not found' });
     }
 
-    res.status(200).json({ success: true, data: lead });
+    // Enrich with intelligence fields
+    const confidenceScore = lead.matchScore;
+    const urgencyLevel = lead.matchScore > 85 ? 'High' : (lead.matchScore > 70 ? 'Medium' : 'Low');
+    
+    const enrichedLead = {
+      id: lead._id,
+      name: lead.company,
+      match: lead.matchScore,
+      status: lead.status.toUpperCase(),
+      statusColor: lead.matchScore > 85 ? '#EF4444' : (lead.matchScore > 70 ? '#F59E0B' : '#94A3B8'),
+      signal: 'Active',
+      signalColor: '#DBEAFE',
+      location: lead.location || 'Unknown',
+      industry: lead.industry,
+      lastContact: '1d ago',
+      contact: lead.name,
+      email: lead.email,
+      phone: lead.phone || 'N/A',
+      revenue: '$50M',
+      employees: '500',
+      confidenceScore,
+      urgencyLevel,
+      recommendedProduct: {
+        name: 'Product Solution',
+        justification: 'Based on industry and company size'
+      },
+      aiReportSummary: [
+        'Lead analysis in progress',
+        'Contact information verified',
+        'Recommended for follow-up'
+      ],
+      _id: lead._id,
+      company: lead.company,
+      matchScore: lead.matchScore,
+      createdAt: lead.createdAt,
+      lastUpdated: lead.lastUpdated
+    };
+
+    res.status(200).json({ success: true, data: enrichedLead });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -161,6 +242,10 @@ exports.convertLead = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+// Initialize services
+const { sendNotification } = require('../services/notificationService');
+const { sendEmailNotification } = require('../services/emailNotificationService');
+
 // @desc    Generate a simulated lead (AI Agent Simulation)
 // @route   POST /api/leads/generate
 // @access  Public
@@ -173,21 +258,73 @@ exports.generateLead = async (req, res) => {
     // Generate realistic data
     const industry = industries[Math.floor(Math.random() * industries.length)];
     const company = `${companies[Math.floor(Math.random() * companies.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]} ${Math.floor(Math.random() * 99)}`;
-    const score = Math.floor(Math.random() * (98 - 65) + 65);
+    const score = Math.floor(Math.random() * (98 - 86) + 86); // Force High Score for demo (86-98)
     
+    // Assign a sales officer (randomly from DB)
+    const User = require('../models/User');
+    const salesOfficers = await User.find({ role: 'sales' });
+    let assignedOfficer = null;
+    
+    if (salesOfficers.length > 0) {
+      assignedOfficer = salesOfficers[Math.floor(Math.random() * salesOfficers.length)];
+    }
+
     const newLead = await Lead.create({
-      name: company, // Using company name as lead name for simplicity in this context
+      name: company,
       company: company,
       industry: industry,
       email: `contact@${company.toLowerCase().replace(/\s/g, '')}.com`,
       phone: `+1-555-01${Math.floor(Math.random() * 99)}`,
+      location: ['New York, USA', 'London, UK', 'Mumbai, India', 'Singapore', 'Berlin, Germany'][Math.floor(Math.random() * 5)],
       matchScore: score,
       status: 'new',
+      salesOfficer: assignedOfficer ? assignedOfficer._id : null,
       createdAt: new Date()
     });
 
+    // ---------------------------------------------------------
+    // TRIGGER NOTIFICATIONS (WhatsApp + Email)
+    // ---------------------------------------------------------
+    
+    // Prepare officer details for notification
+    const officerDetails = {
+      name: assignedOfficer?.username || 'Sales Officer',
+      phone: assignedOfficer?.phone || process.env.SALES_OFFICER_PHONE || '919876543210',
+      email: assignedOfficer?.email || process.env.SALES_OFFICER_EMAIL || 'demo@sanchit.ai'
+    };
+
+    // Construct lead object expected by notification services
+    const notificationPayload = {
+      companyName: newLead.company,
+      industry: newLead.industry,
+      location: newLead.location || 'Global',
+      suggestedProduct: 'Enterprise AI Suite', // Mock product
+      priority: 'HIGH', // Force HIGH for notification eligibility
+      status: 'NEW',
+      reason: `Matched with ${score}% confidence based on recent market expansion signals.`,
+      salesOfficer: officerDetails,
+      skipTimeCheck: true // Force send even if outside hours for demo
+    };
+
+    // Send notifications in background (don't await to keep API fast)
+    if (assignedOfficer) {
+        console.log(`🚀 Triggering notifications for new lead: ${newLead.company} to ${officerDetails.name}`);
+        
+        sendNotification(notificationPayload)
+        .then(res => console.log('WhatsApp Result:', res.status))
+        .catch(err => console.error('WhatsApp Error:', err.message));
+
+        sendEmailNotification(notificationPayload)
+        .then(res => console.log('Email Result:', res.status))
+        .catch(err => console.error('Email Error:', err.message));
+    } else {
+        console.log('⚠️ No Sales Officer assigned. Creating lead without notifications.');
+    }
+    // ---------------------------------------------------------
+
     res.status(201).json({ success: true, data: newLead });
   } catch (err) {
+    console.error('Generate Lead Error:', err);
     res.status(500).json({ success: false, error: 'Failed to generate lead' });
   }
 };
@@ -231,6 +368,55 @@ exports.addLeadFeedback = async (req, res) => {
 
     res.status(200).json({ success: true, data: lead });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// @desc    Test notification for a specific lead
+// @route   POST /api/leads/:id/notify
+// @access  Public (for testing)
+exports.testLeadNotification = async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+
+    const notificationPayload = {
+      companyName: lead.company,
+      industry: lead.industry,
+      location: lead.location || 'Unknown',
+      suggestedProduct: 'Enterprise AI Suite',
+      priority: 'HIGH', // Force HIGH for testing
+      status: 'NEW', // Force NEW for testing
+      reason: `Manual test notification trigger. Match Score: ${lead.matchScore}`,
+      salesOfficer: {
+        name: 'Omkar Shukla',
+        phone: process.env.SALES_OFFICER_PHONE || '919876543210',
+        email: process.env.SALES_OFFICER_EMAIL || 'demo@sanchit.ai'
+      },
+      skipTimeCheck: true
+    };
+
+    console.log(`🔔 Testing notification for lead: ${lead.company}`);
+
+    // Trigger asynchronously
+    sendNotification(notificationPayload)
+      .then(res => console.log('WhatsApp Test Result:', res.status))
+      .catch(err => console.error('WhatsApp Test Error:', err.message));
+
+    sendEmailNotification(notificationPayload)
+      .then(res => console.log('Email Test Result:', res.status))
+      .catch(err => console.error('Email Test Error:', err.message));
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Notifications triggered successfully',
+      leadId: lead._id 
+    });
+  } catch (err) {
+    console.error('Test Notification Error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 };

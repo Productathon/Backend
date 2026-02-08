@@ -39,6 +39,11 @@ const LeadSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  salesOfficer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   lastUpdated: {
     type: Date,
     default: Date.now,

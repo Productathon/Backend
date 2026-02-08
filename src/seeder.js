@@ -4,6 +4,7 @@ const Lead = require('./models/Lead');
 const Account = require('./models/Account');
 const Dossier = require('./models/Dossier');
 const Log = require('./models/Log');
+const User = require('./models/User'); // Import User model
 const connectDB = require('./config/db');
 
 // Load env vars
@@ -28,8 +29,22 @@ const importData = async () => {
     await Account.deleteMany();
     await Dossier.deleteMany();
     await Log.deleteMany();
+    await User.deleteMany(); // Clear users
 
     console.log('Data Destroyed...');
+
+    // Create Users
+    const users = [
+      { username: 'admin', password: 'password123', role: 'admin' },
+      { username: 'sales001', password: 'password123', role: 'sales' },
+      { username: 'omkar', password: 'password123', role: 'sales' },
+    ];
+    
+    // We use create instead of insertMany to trigger the pre-save hook for password hashing
+    for (const user of users) {
+      await User.create(user);
+    }
+    console.log('Users Created...');
 
     // ... (leads array unchanged)
     

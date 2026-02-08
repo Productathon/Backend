@@ -35,9 +35,9 @@ const importData = async () => {
 
     // Create Users
     const users = [
-      { username: 'admin', password: 'password123', role: 'admin' },
-      { username: 'sales001', password: 'password123', role: 'sales' },
-      { username: 'omkar', password: 'password123', role: 'sales' },
+      { username: 'admin', email: 'admin@company.com', password: 'password123', role: 'admin' },
+      { username: 'sales001', email: 'sales001@company.com', password: 'password123', role: 'sales' },
+      { username: 'omkar', email: 'omkar@company.com', password: 'password123', role: 'sales' },
     ];
     
     // We use create instead of insertMany to trigger the pre-save hook for password hashing
